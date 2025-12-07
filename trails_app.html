@@ -266,6 +266,75 @@
       border-color: var(--border-color);
     }
 
+    /* Information panel at the top of the sidebar.  This panel provides
+       instructions about using the site and buttons for exporting/importing
+       completion status.  It borrows styling cues from peakbagger: dark
+       background, rounded borders, and subtle borders. */
+    .info-panel {
+      margin: 1rem;
+      margin-bottom: 0;
+      padding: 1rem;
+      background-color: var(--bg-tertiary);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      color: var(--text-secondary);
+      font-size: 0.85rem;
+      line-height: 1.4;
+    }
+    .info-panel strong {
+      color: var(--accent-blue);
+    }
+    .export-import {
+      display: flex;
+      gap: 0.5rem;
+      margin-top: 0.75rem;
+      flex-wrap: wrap;
+    }
+    .export-import button,
+    .export-import label {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0.4rem 0.75rem;
+      background-color: var(--accent-blue);
+      color: white;
+      border: none;
+      border-radius: 5px;
+      font-size: 0.8rem;
+      cursor: pointer;
+      transition: background-color 0.2s ease;
+      text-decoration: none;
+    }
+    .export-import button:hover,
+    .export-import label:hover {
+      background-color: var(--accent-blue-dark);
+    }
+    /* Hide file input element */
+    .export-import input[type="file"] {
+      display: none;
+    }
+
+    /* Trail list styling adjustments for completed status */
+    #trailList li {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .status-circle {
+      flex-shrink: 0;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      border: 2px solid var(--border-color);
+      margin-left: 0.5rem;
+      cursor: pointer;
+      transition: background-color 0.2s ease, border-color 0.2s ease;
+    }
+    .status-circle.completed {
+      background-color: var(--success-green);
+      border-color: var(--success-green);
+    }
+
     /* Responsive adjustments for smaller screens */
     @media (max-width: 1024px) {
       #sidebar {
@@ -301,6 +370,17 @@
         <p>White Mountain National Forest</p>
       </div>
 
+      <!-- Information panel with instructions and import/export controls -->
+      <div class="info-panel">
+        <p><strong>Instructions:</strong> Track your progress on the <em>NH Tracing / Redlining</em> list from the guidebook. Use the green check circles to mark trails you’ve completed. Your progress is stored locally in your browser. Export or import your completion status via CSV or XLSX using the controls below.</p>
+        <div class="export-import">
+          <button id="exportBtn" type="button">Export CSV</button>
+          <label for="importFile" class="import-label">Import
+            <input type="file" id="importFile" accept=".csv,.xlsx,.json" />
+          </label>
+        </div>
+      </div>
+
       <!-- Search and sort controls -->
       <div class="controls">
         <input type="text" id="searchInput" placeholder="Search trails…" />
@@ -329,6 +409,8 @@
     src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
     crossorigin=""
   ></script>
+  <!-- Include SheetJS library for XLSX import/export -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script>
     (async function() {
       // Set a rough center over the WMNF.  The map will re‑center when a trail
@@ -349,9 +431,159 @@
 
       // Containers for the trail data.  `trailLayers` maps trail names to their
       // Leaflet layer and feature information.  `trailNames` holds just the names
-      // for easy sorting and filtering.
+      // for easy sorting and filtering.  `completedTrails` tracks user‑marked
+      // completion status for each trail, persisted in localStorage.
       const trailLayers = {};
       const trailNames = [];
+      const completionKey = 'wmnfTrailCompletion';
+      let completedTrails = {};
+      // Retrieve success (completed) color from CSS variables.  Fallback to
+      // a hardcoded green if not found.
+      const successColor = getComputedStyle(document.documentElement).getPropertyValue('--success-green').trim() || '#51cf66';
+
+      /**
+       * Load completion data from localStorage.  If no data exists, an empty
+       * object is used.  Parsing errors are silently ignored.
+       */
+      function loadCompletion() {
+        try {
+          const stored = localStorage.getItem(completionKey);
+          completedTrails = stored ? JSON.parse(stored) : {};
+        } catch (e) {
+          completedTrails = {};
+        }
+      }
+
+      /**
+       * Persist completion data back to localStorage.  Always stringify the
+       * object to ensure consistent storage.
+       */
+      function saveCompletion() {
+        try {
+          localStorage.setItem(completionKey, JSON.stringify(completedTrails));
+        } catch (e) {
+          console.warn('Failed to save completion state:', e);
+        }
+      }
+
+      /**
+       * Toggle completion status for a given trail.  After toggling, persist
+       * the change and reapply styles to both the map and list.
+       *
+       * @param {string} name The trail name
+       */
+      function toggleCompletion(name) {
+        completedTrails[name] = !completedTrails[name];
+        saveCompletion();
+        applyCompletionStyles();
+        renderTrailList();
+      }
+
+      /**
+       * Apply completion styles to all trail layers.  Completed trails are
+       * colored green, while incomplete trails retain the default blue.
+       */
+      function applyCompletionStyles() {
+        Object.entries(trailLayers).forEach(([name, info]) => {
+          const isCompleted = completedTrails[name];
+          const color = isCompleted ? successColor : '#3388ff';
+          info.layer.setStyle({ color: color, weight: 3 });
+        });
+      }
+
+      /**
+       * Export progress as a CSV file.  Each row contains the trail name and
+       * whether it is completed (true/false).
+       */
+      function exportCSV() {
+        let csv = 'Trail,Completed\n';
+        trailNames.forEach(name => {
+          const completed = completedTrails[name] ? 'true' : 'false';
+          // Escape double quotes in names
+          const safeName = name.replace(/"/g, '""');
+          csv += `"${safeName}",${completed}\n`;
+        });
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = 'trail-progress.csv';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+      }
+
+      /**
+       * Parse CSV text and update completion data accordingly.  Assumes
+       * first row contains headers and subsequent rows contain name and
+       * completed flag.  Ignores unknown trails.
+       *
+       * @param {string} text Raw CSV content
+       */
+      function parseCSV(text) {
+        const lines = text.split(/\r?\n/).filter(l => l.trim());
+        const imported = {};
+        lines.slice(1).forEach(line => {
+          const parts = line.split(',');
+          if (parts.length >= 2) {
+            const name = parts[0].replace(/^"|"$/g, '').replace(/""/g, '"').trim();
+            const val = (parts[1] || '').trim().toLowerCase();
+            imported[name] = val === 'true' || val === '1' || val === 'yes';
+          }
+        });
+        completedTrails = imported;
+        saveCompletion();
+        applyCompletionStyles();
+        renderTrailList();
+      }
+
+      /**
+       * Parse rows from an XLSX worksheet and update completion data.
+       * Accepts an array of arrays where the first row is a header.
+       *
+       * @param {Array<Array<any>>} rows Parsed rows from sheetjs
+       */
+      function parseRows(rows) {
+        const imported = {};
+        rows.slice(1).forEach(row => {
+          const name = row[0];
+          const val = String(row[1] || '').toLowerCase();
+          imported[name] = val === 'true' || val === '1' || val === 'yes';
+        });
+        completedTrails = imported;
+        saveCompletion();
+        applyCompletionStyles();
+        renderTrailList();
+      }
+
+      // Hook up export button click
+      document.getElementById('exportBtn').addEventListener('click', exportCSV);
+      // Hook up import file change
+      document.getElementById('importFile').addEventListener('change', function(e) {
+        const file = e.target.files[0];
+        if (!file) return;
+        const ext = file.name.split('.').pop().toLowerCase();
+        if (ext === 'csv') {
+          const reader = new FileReader();
+          reader.onload = function(ev) {
+            parseCSV(ev.target.result);
+          };
+          reader.readAsText(file);
+        } else if (ext === 'xlsx' || ext === 'xls') {
+          const reader = new FileReader();
+          reader.onload = function(ev) {
+            const data = new Uint8Array(ev.target.result);
+            const workbook = XLSX.read(data, { type: 'array' });
+            const sheet = workbook.Sheets[workbook.SheetNames[0]];
+            const rows = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+            parseRows(rows);
+          };
+          reader.readAsArrayBuffer(file);
+        }
+        // reset input to allow re-import of same file
+        this.value = '';
+      });
 
       /**
        * Fetch the GeoJSON file from the server.  For Wix embedding, we use multiple
@@ -399,9 +631,9 @@
       // back to the default style before applying a highlighted style to the
       // selected trail.
       function highlightLayer(targetLayer) {
-        Object.values(trailLayers).forEach(({ layer }) => {
-          layer.setStyle({ color: '#3388ff', weight: 3 });
-        });
+        // Reset all trails to their completion or default color
+        applyCompletionStyles();
+        // Highlight the selected trail in red
         targetLayer.setStyle({ color: '#e74c3c', weight: 5 });
       }
 
@@ -414,7 +646,7 @@
        * @param {Object} geoData The GeoJSON FeatureCollection to display
        */
       function addTrailsToMap(geoData) {
-        L.geoJSON(geoData, {
+        const geoLayer = L.geoJSON(geoData, {
           style: function(feature) {
             // Default line styling.  You can change the color or weight here.
             return { color: '#3388ff', weight: 3 };
@@ -437,6 +669,8 @@
             });
           }
         }).addTo(map);
+        // After adding all features, apply completion styles to set initial colors
+        applyCompletionStyles();
       }
 
       /**
@@ -454,6 +688,9 @@
         filteredNames.sort((a, b) => {
           return sortOrder === 'za' ? b.localeCompare(a) : a.localeCompare(b);
         });
+        // Remove any previous empty state messages
+        const container = listElement.parentElement;
+        container.querySelectorAll('.empty-state').forEach(el => el.remove());
         // Clear the existing list
         listElement.innerHTML = '';
         
@@ -464,15 +701,28 @@
           emptyMsg.textContent = searchQuery 
             ? 'No trails found. Try a different search.' 
             : 'No trails available.';
-          listElement.parentElement.appendChild(emptyMsg);
+          container.appendChild(emptyMsg);
           return;
         }
         
-        // Populate list items
+        // Populate list items with status circle and name
         filteredNames.forEach(name => {
           const li = document.createElement('li');
-          li.textContent = name;
-          // When a list item is clicked, highlight and pan to the trail
+          // Name span
+          const nameSpan = document.createElement('span');
+          nameSpan.className = 'trail-name';
+          nameSpan.textContent = name;
+          // Status circle
+          const statusSpan = document.createElement('span');
+          statusSpan.className = 'status-circle';
+          if (completedTrails[name]) {
+            statusSpan.classList.add('completed');
+          }
+          statusSpan.addEventListener('click', function(e) {
+            e.stopPropagation();
+            toggleCompletion(name);
+          });
+          // Click on list item selects trail on map
           li.addEventListener('click', function() {
             const info = trailLayers[name];
             if (info) {
@@ -484,6 +734,9 @@
               this.classList.add('active');
             }
           });
+          // Assemble list item
+          li.appendChild(nameSpan);
+          li.appendChild(statusSpan);
           listElement.appendChild(li);
         });
       }
@@ -494,6 +747,9 @@
       const loadingState = document.getElementById('loadingState');
       loadingState.style.display = 'block';
       
+      // Load any previously saved completion status from localStorage
+      loadCompletion();
+
       const geoData = await loadGeoJSON();
       loadingState.style.display = 'none';
       
