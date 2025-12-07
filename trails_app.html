@@ -19,19 +19,32 @@
   crossorigin=""
 />
   <style>
-    /*
-      Base layout styling
+    * {
+      box-sizing: border-box;
+    }
 
-      The page is divided into two main parts: a sidebar for the trail list and a map
-      container.  Flexbox allows the sidebar and map to sit side‑by‑side on desktop
-      and stack on smaller screens.  The body and html elements are stretched to
-      occupy the full viewport so that the map fills available space.
-    */
+    /* Dark theme color palette */
+    :root {
+      --bg-primary: #1a1d23;
+      --bg-secondary: #25282f;
+      --bg-tertiary: #2d3039;
+      --border-color: #3d4048;
+      --text-primary: #e8e9eb;
+      --text-secondary: #a0a3a8;
+      --accent-blue: #4a9eff;
+      --accent-blue-dark: #2d7dd8;
+      --accent-red: #ff6b6b;
+      --success-green: #51cf66;
+      --hover-bg: #33373f;
+    }
+
     html, body {
       height: 100%;
       margin: 0;
       padding: 0;
-      font-family: Arial, sans-serif;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+      background-color: var(--bg-primary);
+      color: var(--text-primary);
     }
 
     /* Root container for the app */
@@ -39,72 +52,221 @@
       display: flex;
       flex-direction: row;
       height: 100%;
+      gap: 0;
     }
 
     /* Sidebar holds the search/sort controls and the list of trails */
     #sidebar {
-      box-sizing: border-box;
-      width: 30%;
-      min-width: 250px;
-      max-width: 400px;
-      padding: 1rem;
-      border-right: 1px solid #ccc;
-      overflow-y: auto;
-      background-color: #fafafa;
+      width: 32%;
+      min-width: 300px;
+      max-width: 450px;
+      background-color: var(--bg-secondary);
+      border-right: 1px solid var(--border-color);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
     }
 
-    /* Map container flexes to fill the remaining space */
-    #map {
-      flex: 1;
+    /* Header section with title */
+    .sidebar-header {
+      padding: 1.5rem;
+      border-bottom: 1px solid var(--border-color);
+      background-color: var(--bg-primary);
     }
 
-    /* Controls container styles the search input and sort dropdown */
+    .sidebar-header h1 {
+      margin: 0;
+      font-size: 1.5rem;
+      font-weight: 600;
+      color: var(--text-primary);
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .sidebar-header p {
+      margin: 0.5rem 0 0 0;
+      font-size: 0.85rem;
+      color: var(--text-secondary);
+    }
+
+    /* Controls container */
     .controls {
-      margin-bottom: 1rem;
+      padding: 1rem 1.5rem;
+      border-bottom: 1px solid var(--border-color);
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+      background-color: var(--bg-secondary);
     }
-    .controls input[type="text"], .controls select {
+
+    .controls input[type="text"],
+    .controls select {
       width: 100%;
-      padding: 0.5rem;
-      margin-bottom: 0.5rem;
-      border: 1px solid #aaa;
+      padding: 0.75rem;
+      background-color: var(--bg-tertiary);
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      font-size: 0.95rem;
+      color: var(--text-primary);
+      transition: all 0.2s ease;
+    }
+
+    .controls input[type="text"]::placeholder {
+      color: var(--text-secondary);
+    }
+
+    .controls input[type="text"]:focus,
+    .controls select:focus {
+      outline: none;
+      border-color: var(--accent-blue);
+      background-color: var(--bg-tertiary);
+      box-shadow: 0 0 0 3px rgba(74, 158, 255, 0.1);
+    }
+
+    .controls select {
+      cursor: pointer;
+      appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%23a0a3a8' d='M1 1l5 5 5-5'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 0.75rem center;
+      padding-right: 2.5rem;
+    }
+
+    /* Trail list container */
+    .trail-list-container {
+      flex: 1;
+      overflow-y: auto;
+      overflow-x: hidden;
+    }
+
+    .trail-list-container::-webkit-scrollbar {
+      width: 8px;
+    }
+
+    .trail-list-container::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    .trail-list-container::-webkit-scrollbar-thumb {
+      background: var(--border-color);
       border-radius: 4px;
-      font-size: 1rem;
-      box-sizing: border-box;
+    }
+
+    .trail-list-container::-webkit-scrollbar-thumb:hover {
+      background: var(--text-secondary);
     }
 
     /* Trail list styles */
     #trailList {
       list-style: none;
-      padding: 0;
-      margin: 0;
-    }
-    #trailList li {
       padding: 0.5rem;
-      border-bottom: 1px solid #e0e0e0;
-      cursor: pointer;
-      transition: background-color 0.2s;
-    }
-    #trailList li:hover {
-      background-color: #e5f3ff;
+      margin: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
     }
 
-    /* Highlight class for selected list items (optional) */
+    #trailList li {
+      padding: 1rem;
+      background-color: var(--bg-tertiary);
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      font-size: 0.95rem;
+      color: var(--text-primary);
+      user-select: none;
+    }
+
+    #trailList li:hover {
+      background-color: var(--hover-bg);
+      border-color: var(--accent-blue);
+      transform: translateX(4px);
+    }
+
     #trailList li.active {
-      background-color: #cce5ff;
-      font-weight: bold;
+      background: linear-gradient(135deg, var(--accent-blue) 0%, var(--accent-blue-dark) 100%);
+      border-color: var(--accent-blue);
+      font-weight: 600;
+      box-shadow: 0 4px 12px rgba(74, 158, 255, 0.25);
+      color: white;
+    }
+
+    /* Empty state message */
+    .empty-state {
+      padding: 2rem 1.5rem;
+      text-align: center;
+      color: var(--text-secondary);
+      font-size: 0.95rem;
+    }
+
+    /* Map container */
+    #map {
+      flex: 1;
+      background-color: #2d2d2d;
+    }
+
+    /* Leaflet customization */
+    .leaflet-control-container {
+      font-family: inherit;
+    }
+
+    .leaflet-control {
+      background-color: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+    }
+
+    .leaflet-control-zoom-in,
+    .leaflet-control-zoom-out {
+      color: var(--text-primary);
+      background-color: var(--bg-tertiary);
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .leaflet-control-zoom-in:hover,
+    .leaflet-control-zoom-out:hover {
+      background-color: var(--hover-bg);
+      color: var(--accent-blue);
+    }
+
+    .leaflet-popup-content-wrapper {
+      background-color: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      box-shadow: 0 2px 12px rgba(0, 0, 0, 0.4);
+    }
+
+    .leaflet-popup-content {
+      color: var(--text-primary);
+      margin: 0;
+    }
+
+    .leaflet-popup-tip {
+      background-color: var(--bg-secondary);
+      border-color: var(--border-color);
     }
 
     /* Responsive adjustments for smaller screens */
+    @media (max-width: 1024px) {
+      #sidebar {
+        width: 35%;
+        min-width: 320px;
+      }
+    }
+
     @media (max-width: 768px) {
       #app {
         flex-direction: column;
       }
       #sidebar {
         width: 100%;
+        max-width: none;
         height: 40%;
-        max-height: 45%;
         border-right: none;
-        border-bottom: 1px solid #ccc;
+        border-bottom: 1px solid var(--border-color);
       }
       #map {
         height: 60%;
@@ -114,36 +276,29 @@
 </head>
 
 <body>
-  <!--
-    The application container.  Inside, a sidebar holds the trail list and controls,
-    while the map occupies the remaining space.  On mobile, these sections stack.
-  -->
   <div id="app">
     <aside id="sidebar">
+      <!-- Sidebar Header -->
+      <div class="sidebar-header">
+        <h1>🏔️ WMNF Trails</h1>
+        <p>White Mountain National Forest</p>
+      </div>
+
       <!-- Search and sort controls -->
       <div class="controls">
-        <!--
-          Search input: users can type to filter the trail list.  The `id` is
-          referenced in the JavaScript below to add an event listener.
-        -->
         <input type="text" id="searchInput" placeholder="Search trails…" />
-        <!--
-          Sort dropdown: choose between alphabetical and reverse alphabetical order.
-          Additional sort options could be added here (e.g. by length or difficulty)
-          if those properties are available in your GeoJSON.
-        -->
         <select id="sortSelect">
           <option value="az">Sort A → Z</option>
           <option value="za">Sort Z → A</option>
         </select>
       </div>
-      <!--
-        Unordered list where trail names will be rendered dynamically by JavaScript.
-      -->
-      <ul id="trailList"></ul>
+
+      <!-- Trail list container -->
+      <div class="trail-list-container">
+        <ul id="trailList"></ul>
+      </div>
     </aside>
-    <!-- Map container.  Leaflet will take over this div and render the tile
-         layers and vector overlays inside it. -->
+    <!-- Map container -->
     <div id="map"></div>
   </div>
 
@@ -260,6 +415,18 @@
         });
         // Clear the existing list
         listElement.innerHTML = '';
+        
+        // Show empty state if no results
+        if (filteredNames.length === 0) {
+          const emptyMsg = document.createElement('div');
+          emptyMsg.className = 'empty-state';
+          emptyMsg.textContent = searchQuery 
+            ? 'No trails found. Try a different search.' 
+            : 'No trails available.';
+          listElement.parentElement.appendChild(emptyMsg);
+          return;
+        }
+        
         // Populate list items
         filteredNames.forEach(name => {
           const li = document.createElement('li');
@@ -271,7 +438,7 @@
               highlightLayer(info.layer);
               map.fitBounds(info.layer.getBounds(), { maxZoom: 14, animate: true });
               info.layer.openPopup();
-              // Optionally mark the clicked list item as active
+              // Mark the clicked list item as active
               document.querySelectorAll('#trailList li').forEach(el => el.classList.remove('active'));
               this.classList.add('active');
             }
