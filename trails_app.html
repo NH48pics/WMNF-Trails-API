@@ -28,8 +28,8 @@
       --bg-secondary: #25282f;
       --bg-tertiary: #2d3039;
       --border-color: #3d4048;
-      --text-primary: #e8e9eb;
-      --text-secondary: #a0a3a8;
+      --text-primary: #ffffff;
+      --text-secondary: #ffffff;
       --accent-blue: #4a9eff;
       --accent-blue-dark: #2d7dd8;
       --accent-red: #ff6b6b;
@@ -335,6 +335,59 @@
       border-color: var(--success-green);
     }
 
+    /* Allow the trail name span to grow, pushing controls to the right */
+    .trail-name {
+      flex: 1;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    /* Date display and input styling */
+    .date-container {
+      margin-left: 0.5rem;
+      font-size: 0.85rem;
+      color: var(--text-primary);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+    }
+    .date-container .date-icon {
+      font-size: 1rem;
+      margin-left: 0.25rem;
+    }
+    .date-input {
+      display: none;
+      background-color: var(--bg-tertiary);
+      border: 1px solid var(--border-color);
+      border-radius: 4px;
+      color: var(--text-primary);
+      padding: 0.2rem;
+      margin-left: 0.25rem;
+      font-size: 0.85rem;
+    }
+    /* invert calendar picker icon colors in date input */
+    .date-input::-webkit-calendar-picker-indicator {
+      filter: invert(1);
+    }
+
+    /* Styling for collapsible instructions */
+    details summary {
+      color: var(--text-primary);
+      cursor: pointer;
+      font-weight: 600;
+      margin-top: 0.5rem;
+    }
+    details summary::-webkit-details-marker {
+      color: var(--accent-blue);
+    }
+    details summary::marker {
+      color: var(--accent-blue);
+    }
+    details p {
+      margin: 0.5rem 0 0;
+    }
+
     /* Responsive adjustments for smaller screens */
     @media (max-width: 1024px) {
       #sidebar {
@@ -366,13 +419,24 @@
     <aside id="sidebar">
       <!-- Sidebar Header -->
       <div class="sidebar-header">
-        <h1>🏔️ WMNF Trails</h1>
+        <h1>🏔️ WMNF Trails API Companion</h1>
         <p>White Mountain National Forest</p>
       </div>
 
-      <!-- Information panel with instructions and import/export controls -->
+      <!-- Information panel with collapsible instructions and import/export controls -->
       <div class="info-panel">
-        <p><strong>Instructions:</strong> Track your progress on the <em>NH Tracing / Redlining</em> list from the guidebook. Use the green check circles to mark trails you’ve completed. Your progress is stored locally in your browser. Export or import your completion status via CSV or XLSX using the controls below.</p>
+        <details>
+          <summary>About this list</summary>
+          <p>NH Tracing, Redlining, and White Mountain Trails all refer to the same collection of trails described in the guidebook. No matter which name you use, you’re working towards the same goal of experiencing these paths.</p>
+        </details>
+        <details>
+          <summary>Disclaimer</summary>
+          <p>This site is <strong>not intended for planning or navigation</strong>. Trail data may contain minor errors or inaccuracies, and this collection is not the official list (though it includes most of the known trails). Please refer to official sources and use good judgement in the backcountry.</p>
+        </details>
+        <details>
+          <summary>How to use</summary>
+          <p>Use the green circles to mark a trail as completed. After marking a trail, tap the calendar icon to add a date of completion — the date will replace the icon once selected and can be edited by tapping again. Your progress is stored locally in your browser. You can export or import your progress using the buttons below.</p>
+        </details>
         <div class="export-import">
           <button id="exportBtn" type="button">Export CSV</button>
           <label for="importFile" class="import-label">Import
@@ -448,7 +512,24 @@
       function loadCompletion() {
         try {
           const stored = localStorage.getItem(completionKey);
-          completedTrails = stored ? JSON.parse(stored) : {};
+          const parsed = stored ? JSON.parse(stored) : {};
+          // If the old format used a boolean for completed trails, convert to object
+          Object.keys(parsed).forEach(key => {
+            const val = parsed[key];
+            if (typeof val === 'boolean') {
+              parsed[key] = { completed: val, date: '' };
+            } else if (val && typeof val === 'object') {
+              // Ensure both properties exist
+              parsed[key] = {
+                completed: !!val.completed,
+                date: val.date || ''
+              };
+            } else {
+              // Unknown format, treat as incomplete
+              parsed[key] = { completed: false, date: '' };
+            }
+          });
+          completedTrails = parsed;
         } catch (e) {
           completedTrails = {};
         }
@@ -473,7 +554,16 @@
        * @param {string} name The trail name
        */
       function toggleCompletion(name) {
-        completedTrails[name] = !completedTrails[name];
+        // Ensure entry exists
+        if (!completedTrails[name]) {
+          completedTrails[name] = { completed: false, date: '' };
+        }
+        const currentStatus = completedTrails[name].completed;
+        completedTrails[name].completed = !currentStatus;
+        // When marking incomplete, clear the date
+        if (!completedTrails[name].completed) {
+          completedTrails[name].date = '';
+        }
         saveCompletion();
         applyCompletionStyles();
         renderTrailList();
@@ -485,9 +575,11 @@
        */
       function applyCompletionStyles() {
         Object.entries(trailLayers).forEach(([name, info]) => {
-          const isCompleted = completedTrails[name];
-          const color = isCompleted ? successColor : '#3388ff';
-          info.layer.setStyle({ color: color, weight: 3 });
+          const status = completedTrails[name];
+          const completed = status && status.completed;
+          const color = completed ? successColor : '#3388ff';
+          const weight = completed ? 5 : 3;
+          info.layer.setStyle({ color: color, weight: weight });
         });
       }
 
@@ -496,12 +588,14 @@
        * whether it is completed (true/false).
        */
       function exportCSV() {
-        let csv = 'Trail,Completed\n';
+        let csv = 'Trail,Completed,Date\n';
         trailNames.forEach(name => {
-          const completed = completedTrails[name] ? 'true' : 'false';
+          const status = completedTrails[name] || { completed: false, date: '' };
+          const completed = status.completed ? 'true' : 'false';
+          const date = status.date || '';
           // Escape double quotes in names
           const safeName = name.replace(/"/g, '""');
-          csv += `"${safeName}",${completed}\n`;
+          csv += `"${safeName}",${completed},${date}\n`;
         });
         const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
         const url = URL.createObjectURL(blob);
@@ -529,7 +623,11 @@
           if (parts.length >= 2) {
             const name = parts[0].replace(/^"|"$/g, '').replace(/""/g, '"').trim();
             const val = (parts[1] || '').trim().toLowerCase();
-            imported[name] = val === 'true' || val === '1' || val === 'yes';
+            const date = (parts[2] || '').trim();
+            imported[name] = {
+              completed: val === 'true' || val === '1' || val === 'yes',
+              date: date
+            };
           }
         });
         completedTrails = imported;
@@ -549,7 +647,11 @@
         rows.slice(1).forEach(row => {
           const name = row[0];
           const val = String(row[1] || '').toLowerCase();
-          imported[name] = val === 'true' || val === '1' || val === 'yes';
+          const date = row.length >= 3 ? String(row[2] || '').trim() : '';
+          imported[name] = {
+            completed: val === 'true' || val === '1' || val === 'yes',
+            date: date
+          };
         });
         completedTrails = imported;
         saveCompletion();
@@ -705,22 +807,84 @@
           return;
         }
         
-        // Populate list items with status circle and name
+        // Populate list items with status circle, date controls and name
         filteredNames.forEach(name => {
           const li = document.createElement('li');
           // Name span
           const nameSpan = document.createElement('span');
           nameSpan.className = 'trail-name';
           nameSpan.textContent = name;
-          // Status circle
+          // Status circle for completion toggle
           const statusSpan = document.createElement('span');
           statusSpan.className = 'status-circle';
-          if (completedTrails[name]) {
+          const statusData = completedTrails[name];
+          if (statusData && statusData.completed) {
             statusSpan.classList.add('completed');
           }
           statusSpan.addEventListener('click', function(e) {
             e.stopPropagation();
             toggleCompletion(name);
+          });
+          // Date container and input
+          const dateContainer = document.createElement('span');
+          dateContainer.className = 'date-container';
+          const dateData = completedTrails[name];
+          if (dateData && dateData.completed) {
+            if (dateData.date) {
+              dateContainer.textContent = dateData.date;
+            } else {
+              dateContainer.innerHTML = '<span class="date-icon">📅</span>';
+            }
+          } else {
+            dateContainer.style.display = 'none';
+          }
+          const dateInput = document.createElement('input');
+          dateInput.type = 'date';
+          dateInput.className = 'date-input';
+          dateInput.value = (dateData && dateData.date) ? dateData.date : '';
+          // When clicking the date container, show the date picker
+          dateContainer.addEventListener('click', function(e) {
+            e.stopPropagation();
+            // Hide display and show input
+            dateContainer.style.display = 'none';
+            dateInput.style.display = 'inline-flex';
+            dateInput.focus();
+          });
+          // Prevent click on date input from selecting the trail
+          dateInput.addEventListener('click', function(e) {
+            e.stopPropagation();
+          });
+          // When the date value changes, update the stored date
+          dateInput.addEventListener('change', function() {
+            const newDate = dateInput.value;
+            if (!completedTrails[name]) {
+              completedTrails[name] = { completed: true, date: newDate };
+            } else {
+              completedTrails[name].completed = true;
+              completedTrails[name].date = newDate;
+            }
+            saveCompletion();
+            // Update date container display
+            if (newDate) {
+              dateContainer.textContent = newDate;
+            } else {
+              dateContainer.innerHTML = '<span class="date-icon">📅</span>';
+            }
+          });
+          // Hide the input and show the container on blur
+          dateInput.addEventListener('blur', function() {
+            dateInput.style.display = 'none';
+            const data = completedTrails[name];
+            if (data && data.completed) {
+              if (data.date) {
+                dateContainer.textContent = data.date;
+              } else {
+                dateContainer.innerHTML = '<span class="date-icon">📅</span>';
+              }
+              dateContainer.style.display = 'flex';
+            } else {
+              dateContainer.style.display = 'none';
+            }
           });
           // Click on list item selects trail on map
           li.addEventListener('click', function() {
@@ -734,8 +898,10 @@
               this.classList.add('active');
             }
           });
-          // Assemble list item
+          // Assemble list item: name, date controls and status indicator
           li.appendChild(nameSpan);
+          li.appendChild(dateContainer);
+          li.appendChild(dateInput);
           li.appendChild(statusSpan);
           listElement.appendChild(li);
         });
