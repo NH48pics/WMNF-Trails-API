@@ -35,6 +35,10 @@
       --accent-red: #ff6b6b;
       --success-green: #51cf66;
       --hover-bg: #33373f;
+
+      /* Dark green used for primary action buttons (Export/Import) */
+      --button-green: #2f855a;
+      --button-green-dark: #276749;
     }
 
     html, body {
@@ -62,11 +66,13 @@
     /* Top section holds the sidebar and the map side by side */
     #topSection {
       display: flex;
-      /* Allocate more vertical space to the top section using flex-grow.  A higher value
-         means a taller map.  Use 3 to force the panel to occupy most of the height. */
-      flex: 3 1 0;
-      /* Raise the minimum height so the map and settings are taller vertically */
-      min-height: 450px;
+      /* Allocate more vertical space to the top section using flex-grow. A higher value
+         means a taller map. Increase from 3 to 4 to give the map and settings area
+         roughly 30–50% more height relative to the list section. */
+      flex: 4 1 0;
+      /* Raise the minimum height so the map and settings are taller vertically. Increase
+         from 600px to 800px to provide more vertical space for the map and sidebar. */
+      min-height: 800px;
     }
 
     /* Adjust the sidebar dimensions; allow vertical scrolling for long content */
@@ -177,6 +183,28 @@
     .letter-nav span:hover {
       background-color: var(--hover-bg);
       color: var(--accent-blue);
+    }
+
+    /* List header styling */
+    .list-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0.6rem 1rem;
+      background-color: var(--bg-tertiary);
+      border: 1px solid var(--border-color);
+      border-top-left-radius: 8px;
+      border-top-right-radius: 8px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+    .header-name {
+      flex: 1;
+    }
+    .header-completed {
+      flex: 0;
+      margin-left: 0.5rem;
     }
 
     .controls input[type="text"]:focus,
@@ -360,7 +388,7 @@
       align-items: center;
       justify-content: center;
       padding: 0.4rem 0.75rem;
-      background-color: var(--accent-blue);
+      background-color: var(--button-green);
       color: white;
       border: none;
       border-radius: 5px;
@@ -371,7 +399,7 @@
     }
     .export-import button:hover,
     .export-import label:hover {
-      background-color: var(--accent-blue-dark);
+      background-color: var(--button-green-dark);
     }
     /* Hide file input element */
     .export-import input[type="file"] {
@@ -488,7 +516,7 @@
       <aside id="sidebar">
         <!-- Sidebar Header -->
         <div class="sidebar-header">
-          <h1>🏔️ WMNF Trails API Companion</h1>
+        <h1>🏔️ WMNF Trails API Map Tool</h1>
           <p>White Mountain National Forest</p>
         </div>
         <!-- Information panel with collapsible instructions and import/export controls -->
@@ -528,6 +556,11 @@
       </div>
       <!-- A‑Z letter navigation bar -->
       <div id="letterNav" class="letter-nav"></div>
+      <!-- Header row for the trail list -->
+      <div class="list-header">
+        <span class="header-name">Trail Name</span>
+        <span class="header-completed">Completed</span>
+      </div>
       <!-- Trail list container -->
       <div class="trail-list-container">
         <ul id="trailList"></ul>
